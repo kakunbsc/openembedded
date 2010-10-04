@@ -1,0 +1,67 @@
+--- aio-grab/main.c	2009-06-26 01:13:25.000000000 +0900
++++ aio-grab/main3.c	2010-02-02 09:19:06.000000000 +0900
+@@ -85,8 +85,8 @@
+ void combine(unsigned char *output, unsigned char *video, unsigned char *osd, unsigned char *osd_alpha, int xres, int yres);
+ char* upcase(char* mixedstr);
+ 
+-enum {UNKNOWN,PALLAS,VULCAN,XILLEON,BRCM7401,BRCM4380};
+-char *stb_name[]={"unknown","Pallas","Vulcan","Xilleon","Brcm7401","Brcm4380"};
++enum {UNKNOWN,PALLAS,VULCAN,XILLEON,BRCM7401,BRCM4380, VUPLUSDUO, VUPLUSSOLO};
++char *stb_name[]={"unknown","Pallas","Vulcan","Xilleon","Brcm7401","Brcm4380", "VuplusDuo", "VuplusSolo"};
+ int stb_type=UNKNOWN;
+ 
+ // main program
+@@ -123,12 +123,27 @@
+ 	pclose(pipe);
+ 	if (stb_type == BRCM7401) // Bcrm7401 + Bcrm4380 use the same framebuffer string, so fall back to /proc/cpuinfO for detecting DM8000
+ 	{
+-		pipe=popen("cat /proc/cpuinfo","r");
+-		while (fgets(buf,sizeof(buf),pipe))
++		pipe=popen("cat /proc/stb/info/version","r");
++		memset(buf, 0, sizeof(buf));
++		fgets(buf,4,pipe);
++
++		printf("%s\n", buf);
++
++		if(!strcmp(buf, "120"))
++			stb_type=VUPLUSDUO;
++		else if(!strcmp(buf, "140"))
++			stb_type=VUPLUSSOLO;				
++		pclose(pipe);
++
++		if(stb_type == UNKNOWN)
+ 		{
+-			if (strstr(upcase(buf),"BRCM4380")) {stb_type=BRCM4380;}
++			pipe=popen("cat /proc/cpuinfo","r");
++			while (fgets(buf,sizeof(buf),pipe))
++			{
++				if (strstr(upcase(buf),"BRCM4380")) {stb_type=BRCM4380;}
++			}
++			pclose(pipe);
+ 		}
+-		pclose(pipe);
+ 	}
+ 	if (stb_type == UNKNOWN)
+ 	{
+@@ -439,6 +454,21 @@
+ {
+ 	printf("Grabbing Video ...\n");
+ 	
++	if(stb_type == VUPLUSSOLO || stb_type == VUPLUSDUO)
++	{
++		
++		int fd_video = open("/dev/dvb/adapter0/video0", O_RDONLY);
++		if (fd_video < 0)
++		{
++			printf("could not open video device");
++			return;
++		}	 
++		
++		int r = read(fd_video, video, 1920 * 1080 * 3 );
++		*xres = 1920;
++		*yres = 1080;
++		return;
++	}
+ 	int mem_fd;
+ 	//unsigned char *memory;
+ 	void *memory;

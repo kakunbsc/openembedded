@@ -1,0 +1,12 @@
+--- tuxtxt_org/tuxtxt.c	2010-04-01 13:18:13.000000000 +0900
++++ tuxtxt/tuxtxt.c	2010-04-01 13:21:57.000000000 +0900
+@@ -2664,7 +2664,8 @@
+ 	static int init_lcd = 1, old_cached_pages = -1, old_page = -1, old_subpage = -1, old_subpage_max = -1, old_hintmode = -1;
+ 	int  x, y, subpage_max = 0, update_lcd = 0;
+ 
+-	if (lcd == -1) return; // for Dreamboxes without LCD-Display (5xxx)
++//	if (lcd == -1) 
++		return; // for Dreamboxes without LCD-Display (5xxx)
+ 	/* init or update lcd */
+ 	if (init_lcd)
+ 	{

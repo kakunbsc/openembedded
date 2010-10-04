@@ -1,0 +1,13 @@
+diff --git a/Makefile b/Makefile
+index bdf3e48..1c5fe0e 100644
+--- a/Makefile
++++ b/Makefile
+@@ -7,7 +7,7 @@ ifeq ($(WITHOUT_XATTR), 1)
+   CPPFLAGS += -DWITHOUT_XATTR
+ endif
+ 
+-SUBDIRS = mkfs.ubifs ubi-utils
++#SUBDIRS = mkfs.ubifs ubi-utils
+ 
+ TARGETS = ftl_format flash_erase flash_eraseall nanddump doc_loadbios \
+ 	ftl_check mkfs.jffs2 flash_lock flash_unlock flash_info \

@@ -1,0 +1,268 @@
+diff --git a/lib/python/Plugins/Extensions/MediaPlayer/plugin.py b/lib/python/Plugins/Extensions/MediaPlayer/plugin.py
+index 7363e5e..3fa22a2 100755
+--- a/lib/python/Plugins/Extensions/MediaPlayer/plugin.py
++++ b/lib/python/Plugins/Extensions/MediaPlayer/plugin.py
+@@ -7,7 +7,7 @@ from Screens.HelpMenu import HelpableScreen
+ from Screens.MessageBox import MessageBox
+ from Screens.InputBox import InputBox
+ from Screens.ChoiceBox import ChoiceBox
+-from Screens.InfoBarGenerics import InfoBarSeek, InfoBarAudioSelection, InfoBarCueSheetSupport, InfoBarNotifications, InfoBarSubtitleSupport
++from Screens.InfoBarGenerics import InfoBarSeek, InfoBarAudioSelection, InfoBarCueSheetSupport, InfoBarNotifications, InfoBarSubtitleSupport, InfoBarPVRState
+ from Components.ActionMap import NumberActionMap, HelpableActionMap
+ from Components.Label import Label
+ from Components.Pixmap import Pixmap,MultiPixmap
+@@ -87,7 +87,7 @@ class MediaPixmap(Pixmap):
+ 		self.coverArtFileName = "/tmp/.id3coverart"
+ 		self.picload.startDecode(self.coverArtFileName)
+ 
+-class MediaPlayer(Screen, InfoBarBase, InfoBarSeek, InfoBarAudioSelection, InfoBarCueSheetSupport, InfoBarNotifications, InfoBarSubtitleSupport, HelpableScreen):
++class MediaPlayer(Screen, InfoBarBase, InfoBarSeek, InfoBarAudioSelection, InfoBarCueSheetSupport, InfoBarNotifications, InfoBarSubtitleSupport, InfoBarPVRState, HelpableScreen):
+ 	ALLOW_SUSPEND = True
+ 	ENABLE_RESUME_SUPPORT = True
+ 
+@@ -201,6 +201,10 @@ class MediaPlayer(Screen, InfoBarBase, InfoBarSeek, InfoBarAudioSelection, InfoB
+ 
+ 		InfoBarSeek.__init__(self, actionmap = "MediaPlayerSeekActions")
+ 
++		InfoBarPVRState.__init__(self)
++		self.__hideTimer = eTimer()
++		self.__hideTimer.callback.append(self.__hideMediaPlayerState)
++
+ 		self.onClose.append(self.delMPTimer)
+ 		self.onClose.append(self.__onClose)
+ 
+@@ -234,6 +238,14 @@ class MediaPlayer(Screen, InfoBarBase, InfoBarSeek, InfoBarAudioSelection, InfoB
+ 				iPlayableService.evUser+13: self["coverArt"].embeddedCoverArt
+ 			})
+ 
++	def _mayShow(self):
++		self.pvrStateDialog.show()
++		if self.seekstate == self.SEEK_STATE_PLAY and not self.shown:
++			self.__hideTimer.start(5*1000, True)
++
++	def __hideMediaPlayerState(self):
++		self.pvrStateDialog.hide()
++
+ 	def doNothing(self):
+ 		pass
+ 
+@@ -762,6 +774,7 @@ class MediaPlayer(Screen, InfoBarBase, InfoBarSeek, InfoBarAudioSelection, InfoB
+ 			self.playlist.updateList()
+ 			if len(self.playlist) == 1:
+ 				self.changeEntry(0)
++				self.switchToPlayList()
+ 
+ 	def addPlaylistParser(self, parser, extension):
+ 		self.playlistparsers[extension] = parser
+diff --git a/lib/python/Screens/InfoBarGenerics.py b/lib/python/Screens/InfoBarGenerics.py
+index 6619bbc..d1bfa90 100755
+--- a/lib/python/Screens/InfoBarGenerics.py
++++ b/lib/python/Screens/InfoBarGenerics.py
+@@ -946,14 +946,17 @@ class InfoBarSeek:
+ 	def seekFwd(self):
+ 		seek = self.getSeek()
+ 		if seek and not (seek.isCurrentlySeekable() & 2):
+-			if not self.fast_winding_hint_message_showed and (seek.isCurrentlySeekable() & 1):
+-				self.session.open(MessageBox, _("No fast winding possible yet.. but you can use the number buttons to skip forward/backward!"), MessageBox.TYPE_INFO, timeout=10)
+-				self.fast_winding_hint_message_showed = True
+-				return
+-			return 0 # trade as unhandled action
++			media = 1
++		else:
++			media = 0
++#			if not self.fast_winding_hint_message_showed and (seek.isCurrentlySeekable() & 1):
++#				self.session.open(MessageBox, _("No fast winding possible yet.. but you can use the number buttons to skip forward/backward!"), MessageBox.TYPE_INFO, timeout=10)
++#				self.fast_winding_hint_message_showed = True
++#				return
++#			return 0 # trade as unhandled action
+ 		if self.seekstate == self.SEEK_STATE_PLAY:
+ 			self.setSeekState(self.makeStateForward(int(config.seek.enter_forward.value)))
+-		elif self.seekstate == self.SEEK_STATE_PAUSE:
++		elif self.seekstate == self.SEEK_STATE_PAUSE and media==0:
+ 			if len(config.seek.speeds_slowmotion.value):
+ 				self.setSeekState(self.makeStateSlowMotion(config.seek.speeds_slowmotion.value[-1]))
+ 			else:
+@@ -964,7 +967,11 @@ class InfoBarSeek:
+ 			speed = self.seekstate[1]
+ 			if self.seekstate[2]:
+ 				speed /= self.seekstate[2]
+-			speed = self.getHigher(speed, config.seek.speeds_forward.value) or config.seek.speeds_forward.value[-1]
++			if media==1 and speed == 8:
++				speed = 8
++				return 0 # trade as unhandled action
++			else:
++				speed = self.getHigher(speed, config.seek.speeds_forward.value) or config.seek.speeds_forward.value[-1]
+ 			self.setSeekState(self.makeStateForward(speed))
+ 		elif self.isStateBackward(self.seekstate):
+ 			speed = -self.seekstate[1]
+@@ -982,18 +989,27 @@ class InfoBarSeek:
+ 	def seekBack(self):
+ 		seek = self.getSeek()
+ 		if seek and not (seek.isCurrentlySeekable() & 2):
+-			if not self.fast_winding_hint_message_showed and (seek.isCurrentlySeekable() & 1):
+-				self.session.open(MessageBox, _("No fast winding possible yet.. but you can use the number buttons to skip forward/backward!"), MessageBox.TYPE_INFO, timeout=10)
++			media = 1
++		else:
++			media = 0
++#			if not self.fast_winding_hint_message_showed and (seek.isCurrentlySeekable() & 1):
++#				self.session.open(MessageBox, _("No fast winding possible yet.. but you can use the number buttons to skip forward/backward!"), MessageBox.TYPE_INFO, timeout=10)
++#				self.fast_winding_hint_message_showed = True
++#				return
++#			return 0 # trade as unhandled action
++		seekstate = self.seekstate
++		if seekstate == self.SEEK_STATE_PLAY and media==0:
++			self.setSeekState(self.makeStateBackward(int(config.seek.enter_backward.value)))
++		elif seekstate == self.SEEK_STATE_PLAY and media ==1:
++			if not self.fast_winding_hint_message_showed:
++				self.session.open(MessageBox, _("No rewinding possible yet.. but you can use the number buttons to skip forward/backward!"), MessageBox.TYPE_INFO, timeout=10)
+ 				self.fast_winding_hint_message_showed = True
+ 				return
+ 			return 0 # trade as unhandled action
+-		seekstate = self.seekstate
+-		if seekstate == self.SEEK_STATE_PLAY:
+-			self.setSeekState(self.makeStateBackward(int(config.seek.enter_backward.value)))
+ 		elif seekstate == self.SEEK_STATE_EOF:
+ 			self.setSeekState(self.makeStateBackward(int(config.seek.enter_backward.value)))
+ 			self.doSeekRelative(-6)
+-		elif seekstate == self.SEEK_STATE_PAUSE:
++		elif seekstate == self.SEEK_STATE_PAUSE and media==0:
+ 			self.doSeekRelative(-1)
+ 		elif self.isStateForward(seekstate):
+ 			speed = seekstate[1]
+diff --git a/lib/service/servicemp3.cpp b/lib/service/servicemp3.cpp
+old mode 100644
+new mode 100755
+index 9c24d4b..87d7f65
+--- a/lib/service/servicemp3.cpp
++++ b/lib/service/servicemp3.cpp
+@@ -234,6 +234,8 @@ eServiceMP3::eServiceMP3(eServiceReference ref)
+ 	m_aspect = m_width = m_height = m_framerate = m_progressive = -1;
+ 
+ 	m_state = stIdle;
++	m_event_on=FALSE;
++	m_cur_rate=1.0;
+ 	eDebug("eServiceMP3::construct!");
+ 
+ 	const char *filename = m_ref.path.c_str();
+@@ -516,8 +518,14 @@ RESULT eServiceMP3::unpause()
+ 	if (!m_gst_playbin || m_state != stRunning)
+ 		return -1;
+ 
+-	gst_element_set_state(m_gst_playbin, GST_STATE_PLAYING);
+-
++	if(m_cur_rate!=1.0)
++	{	
++		trickSeek(1);
++		gst_element_set_state(m_gst_playbin, GST_STATE_PLAYING);
++	}else if (gst_element_set_state(m_gst_playbin, GST_STATE_PLAYING)==2){
++		eDebug("eServiceMP3::unpause : the state change will happen asunchronously");
++		trickSeek(1);
++	}
+ 	return 0;
+ }
+ 
+@@ -551,7 +559,7 @@ RESULT eServiceMP3::seekToImpl(pts_t to)
+ {
+ 		/* convert pts to nanoseconds */
+ 	gint64 time_nanoseconds = to * 11111LL;
+-	if (!gst_element_seek (m_gst_playbin, 1.0, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH,
++	if (!gst_element_seek (m_gst_playbin, m_cur_rate, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH,
+ 		GST_SEEK_TYPE_SET, time_nanoseconds,
+ 		GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE))
+ 	{
+@@ -568,11 +576,13 @@ RESULT eServiceMP3::seekTo(pts_t to)
+ 
+ 	if (m_gst_playbin) {
+ 		eSingleLocker l(m_subs_to_pull_lock); // this is needed to dont handle incomming subtitles during seek!
++		m_event_on = TRUE;
+ 		if (!(ret = seekToImpl(to)))
+ 		{
+ 			m_subtitle_pages.clear();
+ 			m_subs_to_pull = 0;
+ 		}
++		m_event_on = FALSE;
+ 	}
+ 
+ 	return ret;
+@@ -585,20 +595,25 @@ RESULT eServiceMP3::trickSeek(gdouble ratio)
+ 		return -1;
+ 	if (!ratio)
+ 		return seekRelative(0, 0);
++	
++	eSingleLocker l(m_subs_to_pull_lock);
++	m_event_on=TRUE;
+ 
+ 	GstEvent *s_event;
+ 	int flags;
+ 	flags = GST_SEEK_FLAG_NONE;
+ 	flags |= GST_SEEK_FLAG_FLUSH;
+ // 	flags |= GstSeekFlags (GST_SEEK_FLAG_ACCURATE);
+-	flags |= GST_SEEK_FLAG_KEY_UNIT;
++//	flags |= GST_SEEK_FLAG_KEY_UNIT;
+ // 	flags |= GstSeekFlags (GST_SEEK_FLAG_SEGMENT);
+ // 	flags |= GstSeekFlags (GST_SEEK_FLAG_SKIP);
+ 
+ 	GstFormat fmt = GST_FORMAT_TIME;
+-	gint64 pos, len;
++	gint64 len;
++	pts_t pos;
+ 	gst_element_query_duration(m_gst_playbin, &fmt, &len);
+-	gst_element_query_position(m_gst_playbin, &fmt, &pos);
++	getPlayPosition(pos);
++	pos=pos*11111;
+ 
+ 	if ( ratio >= 0 )
+ 	{
+@@ -616,7 +631,10 @@ RESULT eServiceMP3::trickSeek(gdouble ratio)
+ 		eDebug("eServiceMP3::trickSeek failed");
+ 		return -1;
+ 	}
+-
++	m_subtitle_pages.clear();
++	m_subs_to_pull = 0;
++	m_event_on=FALSE;
++	m_cur_rate=ratio;
+ 	return 0;
+ }
+ 
+@@ -1500,9 +1518,11 @@ eAutoInitPtr<eServiceFactoryMP3> init_eServiceFactoryMP3(eAutoInitNumbers::servi
+ void eServiceMP3::gstCBsubtitleAvail(GstElement *appsink, gpointer user_data)
+ {
+ 	eServiceMP3 *_this = (eServiceMP3*)user_data;
+-	eSingleLocker l(_this->m_subs_to_pull_lock);
+-	++_this->m_subs_to_pull;
+-	_this->m_pump.send(2);
++	if(!_this->m_event_on){
++		eSingleLocker l(_this->m_subs_to_pull_lock);
++		++_this->m_subs_to_pull;
++		_this->m_pump.send(2);
++	}
+ }
+ 
+ void eServiceMP3::pullSubtitle()
+@@ -1511,6 +1531,8 @@ void eServiceMP3::pullSubtitle()
+ 	g_object_get (G_OBJECT (m_gst_playbin), "text-sink", &sink, NULL);
+ 	if (sink)
+ 	{
++		if(m_event_on)
++			return;
+ 		while (m_subs_to_pull && m_subtitle_pages.size() < 2)
+ 		{
+ 			GstBuffer *buffer;
+diff --git a/lib/service/servicemp3.h b/lib/service/servicemp3.h
+old mode 100644
+new mode 100755
+index 01f7cf7..1d981b1
+--- a/lib/service/servicemp3.h
++++ b/lib/service/servicemp3.h
+@@ -227,6 +227,10 @@ private:
+ 	gint m_aspect, m_width, m_height, m_framerate, m_progressive;
+ 	std::string m_useragent;
+ 	RESULT trickSeek(gdouble ratio);
++
++	double m_cur_rate; 
++	bool m_event_on; 
++	
+ };
+ #endif
+ 

@@ -1,0 +1,13 @@
+diff --git a/mytube/src/MyTubeService.py b/mytube/src/MyTubeService.py
+index 7371026..1794db9 100755
+--- a/mytube/src/MyTubeService.py
++++ b/mytube/src/MyTubeService.py
+@@ -115,7 +115,7 @@ class MyTubeFeedEntry():
+ 		if self.entry.media.player:
+ 			split = self.entry.media.player.url.split("=")
+ 			ret = split.pop()
+-			if ret == 'youtube_gdata':
++			if ret == 'youtube_gdata' or ret == 'youtube_gdata_player':
+ 				tmpval=split.pop()
+ 				if tmpval.endswith("&feature"):
+ 					tmp = tmpval.split("&")

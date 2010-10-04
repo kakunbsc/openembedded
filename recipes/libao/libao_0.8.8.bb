@@ -1,0 +1,41 @@
+DESCRIPTION = "A cross platform audio library"
+LICENSE = "GPL"
+HOMEPAGE = "http://www.xiph.org/ao/"
+SECTION = "libs/multimedia"
+DEPENDS = "alsa-lib pulseaudio"
+PROVIDES = "libao-alsa libao-alsa-plugin"
+PR = "r1"
+
+SRC_URI = "http://downloads.xiph.org/releases/ao/libao-${PV}.tar.gz"
+
+inherit autotools pkgconfig
+
+EXTRA_OECONF = "\
+  --enable-oss \
+  --disable-esd \
+  --disable-esdtest \
+  --disable-alsa \
+  --enable-alsa09 \
+  --disable-arts \
+  --disable-nas \
+  --enable-pulse \
+"
+
+do_stage() {
+	autotools_stage_all
+}
+
+
+
+PACKAGES =+ "${PN}-alsa ${PN}-alsa-dev ${PN}-pulse ${PN}-pulse-dev ${PN}-oss ${PN}-oss-dev"
+
+FILES_${PN}-alsa = "${libdir}/ao/plugins-2/libalsa*.so"
+FILES_${PN}-alsa-dev = "${libdir}/ao/plugins-2/libalsa*.la"
+FILES_${PN}-pulse = "${libdir}/ao/plugins-2/libpulse*.so"
+FILES_${PN}-pulse-dev = "${libdir}/ao/plugins-2/libpulse*.la"
+FILES_${PN}-oss = "${libdir}/ao/plugins-2/liboss*.so"
+FILES_${PN}-oss-dev = "${libdir}/ao/plugins-2/liboss*.la"
+
+FILES_${PN} += "${libdir}/ao/plugins-2/*.so"
+FILES_${PN}-dev += "${libdir}/ao/plugins-2/*.la"
+FILES_${PN}-dbg += "${libdir}/ao/plugins-2/.debug"

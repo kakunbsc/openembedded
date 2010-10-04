@@ -1,0 +1,13 @@
+Index: lib/kobject.c
+===================================================================
+--- lib/kobject.c	(revision 1)
++++ lib/kobject.c	(working copy)
+@@ -588,7 +588,7 @@
+ 
+ EXPORT_SYMBOL(kset_register);
+ EXPORT_SYMBOL(kset_unregister);
+-
++EXPORT_SYMBOL(kobject_get_path);
+ EXPORT_SYMBOL(subsystem_register);
+ EXPORT_SYMBOL(subsystem_unregister);
+ EXPORT_SYMBOL(subsys_create_file);

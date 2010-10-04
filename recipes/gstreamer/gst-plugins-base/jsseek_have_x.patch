@@ -1,0 +1,15 @@
+diff --git a/tests/examples/seek/jsseek.c b/tests/examples/seek/jsseek.c
+index 16167e4..dd51990 100644
+--- a/tests/examples/seek/jsseek.c
++++ b/tests/examples/seek/jsseek.c
+@@ -3007,8 +3007,10 @@ main (int argc, char **argv)
+    * asks for the XID of the window to render onto */
+   gtk_widget_realize (window);
+ 
++#ifdef HAVE_X
+   /* we should have the XID now */
+   g_assert (embed_xid != 0);
++#endif
+ 
+   if (verbose) {
+     g_signal_connect (pipeline, "deep_notify",

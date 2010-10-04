@@ -1,0 +1,254 @@
+diff --git a/acinclude.m4 b/acinclude.m4
+index ab3835e..dd6ef07 100755
+--- a/acinclude.m4
++++ b/acinclude.m4
+@@ -159,6 +159,8 @@ fi
+ 
+  #csh
+ AC_DEFINE(BUILD_VUPLUS,1,[Define to 1 for 750])
++ # ikseong
++AC_DEFINE(BUILD_VUPLUS_DUO,1,[Define to 1 for 750])
+ 
+ if test "$DVB_API_VERSION"; then
+ 	AC_DEFINE(HAVE_DVB,1,[Define to 1 if you have the dvb includes])
+diff --git a/lib/dvb/frontend.cpp b/lib/dvb/frontend.cpp
+index 6b09d3d..40c2289 100755
+--- a/lib/dvb/frontend.cpp
++++ b/lib/dvb/frontend.cpp
+@@ -2730,3 +2730,45 @@ arg_error:
+ 		"eDVBFrontend::setSlotInfo must get a tuple with first param slotid, second param slot description and third param enabled boolean");
+ 	return false;
+ }
++
++#ifdef BUILD_VUPLUS_DUO /* ikseong  */
++#ifndef SW_LOOP_THROUGH
++#define SW_LOOP_THROUGH	_IOW('o',103,int)
++#endif
++/*
++*	by ikseong
++*	for loopthrough
++*	onoff	1 - on
++*		   	0 - off
++*/
++RESULT eDVBFrontend::setLoopthrough(int onoff)
++{	
++	char filename[128];
++	int result;
++	int fd;
++	if ( m_fd<0)
++	{
++		sprintf(filename, "/dev/dvb/adapter0/frontend%d",m_slotid);
++		fd = ::open(filename, O_RDWR|O_NONBLOCK);
++	}
++	else
++	{
++		eDebug("fd = %d",m_fd);
++		fd=m_fd;
++	}
++	if(fd > 0)
++	{
++		result =	::ioctl(fd, SW_LOOP_THROUGH, &onoff);
++		eDebug("\n slot %d Loopthrough %d ->",m_slotid,onoff);
++		if (result < 0)
++			eDebugNoNewLine(" %d = %m",result);
++		else
++			eDebugNoNewLine("ok");
++		if(m_fd<0)
++			::close(fd);
++	}
++	else
++		eDebug("eDVBFrontend::setLoopthrough %d open error",m_slotid);	
++	return 0;
++}
++#endif		
+diff --git a/lib/dvb/frontend.h b/lib/dvb/frontend.h
+index bef4a18..9aebc71 100644
+--- a/lib/dvb/frontend.h
++++ b/lib/dvb/frontend.h
+@@ -152,6 +152,11 @@ public:
+ 	int closeFrontend(bool force=false, bool no_delayed=false);
+ 	const char *getDescription() const { return m_description; }
+ 	bool is_simulate() const { return m_simulate; }
++
++#ifdef BUILD_VUPLUS_DUO /* ikseong  */
++	RESULT setLoopthrough(int onoff);
++#endif
++
+ };
+ 
+ #endif // SWIG
+diff --git a/lib/dvb/sec.cpp b/lib/dvb/sec.cpp
+index 58fc5e3..6ece243 100644
+--- a/lib/dvb/sec.cpp
++++ b/lib/dvb/sec.cpp
+@@ -1018,6 +1018,9 @@ RESULT eDVBSatelliteEquipmentControl::clear()
+ 			}
+ 		}
+ 		it->m_frontend->setData(eDVBFrontend::SATPOS_DEPENDS_PTR, -1);
++#ifdef BUILD_VUPLUS_DUO /* ikseong  */
++		it->m_frontend->setLoopthrough(0);
++#endif		
+ 		it->m_frontend->setData(eDVBFrontend::LINKED_PREV_PTR, -1);
+ 		it->m_frontend->setData(eDVBFrontend::LINKED_NEXT_PTR, -1);
+ 		it->m_frontend->setData(eDVBFrontend::ROTOR_POS, -1);
+@@ -1028,6 +1031,9 @@ RESULT eDVBSatelliteEquipmentControl::clear()
+ 	for (eSmartPtrList<eDVBRegisteredFrontend>::iterator it(m_avail_simulate_frontends.begin()); it != m_avail_simulate_frontends.end(); ++it)
+ 	{
+ 		it->m_frontend->setData(eDVBFrontend::SATPOS_DEPENDS_PTR, -1);
++#ifdef BUILD_VUPLUS_DUO /* ikseong  */
++		it->m_frontend->setLoopthrough(0);
++#endif		
+ 		it->m_frontend->setData(eDVBFrontend::LINKED_PREV_PTR, -1);
+ 		it->m_frontend->setData(eDVBFrontend::LINKED_NEXT_PTR, -1);
+ 		it->m_frontend->setData(eDVBFrontend::ROTOR_POS, -1);
+@@ -1459,6 +1465,9 @@ RESULT eDVBSatelliteEquipmentControl::setTunerLinked(int tu1, int tu2)
+ 					fclose(f);
+ 				}
+ 			}
++#ifdef BUILD_VUPLUS_DUO /* ikseong  */
++			p1->m_frontend->setLoopthrough(1);
++#endif
+ 		}
+ 
+ 		p1=p2=NULL;
+@@ -1474,6 +1483,9 @@ RESULT eDVBSatelliteEquipmentControl::setTunerLinked(int tu1, int tu2)
+ 		{
+ 			p1->m_frontend->setData(eDVBFrontend::LINKED_PREV_PTR, (long)p2);
+ 			p2->m_frontend->setData(eDVBFrontend::LINKED_NEXT_PTR, (long)p1);
++#ifdef BUILD_VUPLUS_DUO /* ikseong  */
++			p1->m_frontend->setLoopthrough(1);
++#endif
+ 			return 0;
+ 		}
+ 	}
+diff --git a/lib/gdi/glcddc.cpp b/lib/gdi/glcddc.cpp
+index 096705e..bcf0f5f 100755
+--- a/lib/gdi/glcddc.cpp
++++ b/lib/gdi/glcddc.cpp
+@@ -34,6 +34,16 @@ void gLCDDC::exec(gOpcode *o)
+ {
+ 	switch (o->opcode)
+ 	{
++#ifdef BUILD_VUPLUS_DUO /* ikseong  */
++	case gOpcode::renderText:
++		if (o->parm.renderText->text)
++		{
++			lcd->updates(gDC::m_current_offset,o->parm.renderText->text);
++			free(o->parm.renderText->text);
++			delete o->parm.renderText;
++		}
++		break;
++#endif			
+ 	case gOpcode::flush:
+ //		if (update)
+ #ifndef BUILD_VUPLUS /* ikseong  */
+diff --git a/lib/gdi/lcd.cpp b/lib/gdi/lcd.cpp
+index 9cb657c..83add38 100755
+--- a/lib/gdi/lcd.cpp
++++ b/lib/gdi/lcd.cpp
+@@ -228,3 +228,25 @@ void eDBoxLCD::update()
+ 	}
+ }
+ 
++#ifdef BUILD_VUPLUS_DUO /* ikseong  */
++char *eDBoxLCD::remaketext(char *text)
++{
++	int len = strlen(text);
++	int i;
++	for(i=0;i<len;i++)
++	{
++		if(text[i]==0x0a)
++			text[i] = 0x20;
++	}
++	return text;
++}
++
++void eDBoxLCD::updates(ePoint start,char *text)
++{
++	if((lcdfd >= 0) && (start.y() < 5))
++	{
++		text = remaketext(text);
++		write(lcdfd,text,strlen(text));
++	}
++}
++#endif
+diff --git a/lib/gdi/lcd.h b/lib/gdi/lcd.h
+index e7b4c2c..561e3b0 100644
+--- a/lib/gdi/lcd.h
++++ b/lib/gdi/lcd.h
+@@ -36,6 +36,9 @@ public:
+ 	int stride() { return _stride; }
+ 	eSize size() { return res; }
+ 	virtual void update()=0;
++#ifdef BUILD_VUPLUS_DUO /* ikseong  */
++	virtual void updates(ePoint start,char *text) = 0;
++#endif
+ #endif
+ };
+ 
+@@ -59,6 +62,10 @@ public:
+ 	void setInverted( unsigned char );
+ 	bool isOled() const { return !!is_oled; }
+ 	void update();
++#ifdef BUILD_VUPLUS_DUO /* ikseong  */
++	char *remaketext(char *text);
++	void updates(ePoint start,char *text);
++#endif
+ };
+ 
+ #endif
+diff --git a/lib/python/Screens/ChoiceBox.py b/lib/python/Screens/ChoiceBox.py
+index 7c8b142..39e70d4 100644
+--- a/lib/python/Screens/ChoiceBox.py
++++ b/lib/python/Screens/ChoiceBox.py
+@@ -31,7 +31,9 @@ class ChoiceBox(Screen):
+ 			pos += 1
+ 		self["list"] = ChoiceList(list = self.list, selection = selection)
+ 		self["summary_list"] = StaticText()
+-		self.updateSummary()
++#	ikseong
++#		self.updateSummary()
++		self.updateSummary(selection)
+ 				
+ 		self["actions"] = NumberActionMap(["WizardActions", "InputActions", "ColorActions", "DirectionActions"], 
+ 		{
+@@ -120,14 +122,21 @@ class ChoiceBox(Screen):
+ 	def updateSummary(self, curpos=0):
+ 		pos = 0
+ 		summarytext = ""
++#	ikseong		
++#		for entry in self.summarylist:
++#			if pos > curpos-2 and pos < curpos+5:
++#				if pos == curpos:
++#					summarytext += ">"
++#				else:
++#					summarytext += entry[0]
++#				summarytext += ' ' + entry[1] + '\n'
++#			pos += 1
+ 		for entry in self.summarylist:
+-			if pos > curpos-2 and pos < curpos+5:
+-				if pos == curpos:
+-					summarytext += ">"
+-				else:
+-					summarytext += entry[0]
+-				summarytext += ' ' + entry[1] + '\n'
++			if pos == curpos:
++				summarytext += entry[1] +'\n'
++				break
+ 			pos += 1
++#
+ 		self["summary_list"].setText(summarytext)
+ 
+ 	def cancel(self):
+diff --git a/lib/python/enigma_python.i b/lib/python/enigma_python.i
+index 0bddce1..040952d 100755
+--- a/lib/python/enigma_python.i
++++ b/lib/python/enigma_python.i
+@@ -131,6 +131,7 @@ is usually caused by not marking PSignals as immutable.
+ 
+ #define DEBUG
+ #define BUILD_VUPLUS
++#define BUILD_VUPLUS_DUO
+ typedef long time_t;
+ %include "typemaps.i"
+ %include "std_string.i"

@@ -1,0 +1,26 @@
+mount -at nonfs,nosmbfs,noncpfs,nocifs
+
+swapon -a
+
+tar xzf /etc/var.tar.gz -C /
+
+# sleep after 10min
+hdparm -S120 /dev/sda
+
+# accustic management
+hdparm -M128 /dev/sda
+
+echo 18 > /proc/progress
+for mod in dreambox_keyboard bcm7405; do
+	modprobe $mod
+done
+
+cat /etc/videomode > /proc/stb/video/videomode
+
+[ -e /etc/dropbear/dropbear_rsa_host_key ] && /usr/bin/showiframe /boot/bootlogo.mvi || /usr/bin/showiframe /boot/bootlogo_wait.mvi
+
+hostname -F /etc/hostname
+
+[ -e "/etc/sysctl.conf" ] && /sbin/sysctl -p "/etc/sysctl.conf"
+
+ldconfig

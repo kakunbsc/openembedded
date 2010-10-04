@@ -1,0 +1,55 @@
+DESCRIPTION = "userspace utilities for kernel nfs"
+PRIORITY = "optional"
+SECTION = "console/network"
+LICENSE = "GPL"
+
+PR = "r7"
+
+DEPENDS = "e2fsprogs-libs tcp-wrappers libevent"
+
+SRC_URI = "${SOURCEFORGE_MIRROR}/nfs/nfs-utils-${PV}.tar.gz \
+	file://nfs-utils-tools-unset-cflags.patch;patch=1 \
+	file://nfs-utils-uclibc-compile.patch;patch=1 \
+	file://nfsserver \
+   "
+
+S = "${WORKDIR}/nfs-utils-${PV}/"
+
+PARALLEL_MAKE = ""
+
+# Only kernel-module-nfsd is required here (but can be built-in)  - the nfsd module will
+# pull in the remainder of the dependencies.
+RDEPENDS = "portmap"
+RRECOMMENDS = "kernel-module-nfsd"
+
+INITSCRIPT_NAME = "nfsserver"
+# The server has no dependencies at the user run levels, so just put
+# it in at the default levels.  It must be terminated before the network
+# in the shutdown levels, but that works fine.
+INITSCRIPT_PARAMS = "defaults"
+
+inherit autotools update-rc.d
+
+EXTRA_OECONF = "--with-statduser=nobody \
+		--enable-nfsv3 \
+		--disable-nfsv4 \
+		--disable-gss \
+		--with-statedir=/var/lib/nfs"
+
+do_ccompile() {
+	# UGLY HACK ALERT
+	cat ${WORKDIR}/forgotten-defines >> ${S}/support/include/config.h
+	oe_runmake 'BUILD=1'
+}
+
+INHIBIT_AUTO_STAGE = "1"
+
+do_install_append() {
+	install -d ${D}${sysconfdir}/init.d
+	install -m 0755 ${WORKDIR}/nfsserver ${D}${sysconfdir}/init.d/nfsserver
+
+	rm ${D}${sbindir}/rpcdebug
+}
+
+PACKAGES =+ "nfs-utils-client"
+FILES_nfs-utils-client = "${base_sbindir}/*mount.nfs*"

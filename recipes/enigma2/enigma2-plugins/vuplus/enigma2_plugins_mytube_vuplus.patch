@@ -1,0 +1,74 @@
+diff --git a/mytube/src/plugin.py b/mytube/src/plugin.py
+index 8f9c71d..4420fe2 100755
+--- a/mytube/src/plugin.py
++++ b/mytube/src/plugin.py
+@@ -386,8 +386,10 @@ class MyTubePlayerMainScreen(Screen, ConfigListScreen):
+ 		if current[1].help_window.instance is not None:
+ 			current[1].help_window.instance.hide()
+ 
+-		l3cert = etpm.getCert(eTPM.TPMD_DT_LEVEL3_CERT)
+-		if l3cert is None or l3cert is "":
++#		l3cert = etpm.getCert(eTPM.TPMD_DT_LEVEL3_CERT)
++#		if l3cert is None or l3cert is "":
++		l3cert = 0
++		if False:
+ 			self["videoactions"].setEnabled(False)
+ 			self["searchactions"].setEnabled(False)
+ 			self["config_actions"].setEnabled(False)
+@@ -400,7 +402,8 @@ class MyTubePlayerMainScreen(Screen, ConfigListScreen):
+ 			self['feedlist'].setList(self.statuslist)
+ 			return
+ 
+-		self.l3key = validate_cert(l3cert, self.l2key)
++#		self.l3key = validate_cert(l3cert, self.l2key)
++		self.l3key = 0
+ 		if self.l3key is None:
+ 			print "l3cert invalid"
+ 			return
+@@ -409,11 +412,12 @@ class MyTubePlayerMainScreen(Screen, ConfigListScreen):
+ 			print "random error"
+ 			return
+ 
+-		val = etpm.challenge(rnd)
+-		result = decrypt_block(val, self.l3key)
++#		val = etpm.challenge(rnd)
++#		result = decrypt_block(val, self.l3key)
+ 
+ 		self.statuslist = []
+-		if result[80:88] == rnd:
++#		if result[80:88] == rnd:
++		if True:
+ 			self.statuslist.append(( _("Fetching feed entries"), _("Trying to download the Youtube feed entries. Please wait..." ) ))
+ 			self["feedlist"].style = "state"
+ 			self['feedlist'].setList(self.statuslist)
+@@ -457,9 +461,10 @@ class MyTubePlayerMainScreen(Screen, ConfigListScreen):
+ 				rnd = get_rnd()
+ 				if rnd is None:
+ 					return
+-				val = etpm.challenge(rnd)
+-				result = decrypt_block(val, self.l3key)
+-			if not result or result[80:88] != rnd:
++#				val = etpm.challenge(rnd)
++#				result = decrypt_block(val, self.l3key)
++#			if not result or result[80:88] != rnd:
++			if False:
+ 				self["key_green"].show()
+ 				self.statuslist.append(( _("Genuine Dreambox validation failed!"), _("Verify your Dreambox authenticity by running the genuine dreambox plugin!" ) ))
+ 				self["feedlist"].style = "state"
+@@ -1776,12 +1781,14 @@ class MyTubePlayer(Screen, InfoBarNotifications):
+ 
+ def MyTubeMain(session, **kwargs):
+ 	l2 = False
+-	l2cert = etpm.getCert(eTPM.TPMD_DT_LEVEL2_CERT)
++#	l2cert = etpm.getCert(eTPM.TPMD_DT_LEVEL2_CERT)
++	l2cert = 0
+ 	if l2cert is None:
+ 		print "l2cert not found"
+ 		return
+ 	
+-	l2key = validate_cert(l2cert, rootkey)
++#	l2key = validate_cert(l2cert, rootkey)
++	l2key = 0
+ 	if l2key is None:
+ 		print "l2cert invalid"
+ 		return

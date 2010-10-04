@@ -1,0 +1,142 @@
+SECTION = "console/network"
+LICENSE = "GPL"
+DEPENDS = "readline virtual/libiconv"
+
+SRC_URI = "http://samba.org/samba/ftp/stable/samba-${PV}.tar.gz;name=src \
+           file://volatiles.03_samba \
+           file://smb.conf \
+           file://init \
+           file://tdb.pc \
+           "
+
+SRC_URI_append_opendreambox = " \
+	file://01samba-kill \
+	file://01samba-start"
+
+SRC_URI_append_vuplus = " \
+	file://01samba-kill \
+	file://01samba-start"
+
+S = "${WORKDIR}/samba-${PV}/source"
+
+inherit autotools update-rc.d
+
+FILES_${PN}     += "${libdir}/vfs/*.so ${libdir}/charset/*.so ${libdir}/*.dat \
+                    ${libdir}/auth/*.so ${libdir}/security/*.so"
+FILES_${PN}-dbg += "${libdir}/vfs/.debug/*.so ${libdir}/charset/.debug/*.so \
+                    ${libdir}/auth/.debug/*.so ${libdir}/security/.debug/*.so"
+
+SAMBAMMAP = "no"
+SAMBAMMAP_libc-glibc = "yes"
+
+# The file system settings --foodir=dirfoo and overridden unconditionally
+# in the samba config by --with-foodir=dirfoo - even if the --with is not
+# specified!  Fix that here.  Set the privatedir to /etc/samba/private.
+EXTRA_OECONF='--disable-cups \
+              --with-readline=${STAGING_LIBDIR}/.. \
+              --with-libiconv=${STAGING_LIBDIR}/.. \
+              --without-automount \
+              --with-configdir=${sysconfdir}/samba \
+              --with-privatedir=${sysconfdir}/samba/private \
+              --with-lockdir=${localstatedir}/lock \
+              --with-piddir=${localstatedir}/run \
+              --with-logfilebase=${localstatedir}/log \
+              --with-libdir=${libdir} \
+              --with-mandir=${mandir} \
+              --with-swatdir=${datadir}/swat \
+              --with-aio-support \
+              samba_cv_struct_timespec=yes \
+              libreplace_cv_HAVE_MMAP=${SAMBAMMAP}'
+
+PACKAGES =+ "libsmbclient libsmbclient-dev cifs cifs-doc smbfs smbfs-doc"
+PACKAGES =+ "${@base_conditional('DISTRO', 'opendreambox', ' sambaserver libpopt libtalloc libtdb', '', d)}"
+PACKAGES =+ "${@base_conditional('DISTRO', 'vuplus', ' sambaserver libpopt libtalloc libtdb', '', d)}"
+FILES_smbfs = "${bindir}/smbmount ${bindir}/smbumount ${bindir}/smbmnt ${base_sbindir}/mount.smbfs ${base_sbindir}/mount.smb"
+FILES_smbfs-doc = "${mandir}/man8/smbmount.8 ${mandir}/man8/smbumount.8 ${mandir}/man8/smbmnt.8"
+FILES_cifs = "${base_sbindir}/mount.cifs ${base_sbindir}/umount.cifs"
+FILES_cifs-doc = "${mandir}/man8/mount.cifs.8 ${mandir}/man8/umount.cifs.8"
+FILES_libsmbclient = "${libdir}/libsmbclient.so.*"
+FILES_libsmbclient-dev = "${libdir}/libsmbclient.so ${includedir}"
+FILES_sambaserver = "${sbindir}/smbd ${sbindir}/nmbd ${libdir}/charset/*.so ${libdir}/*.dat \
+	/etc/samba/smb.conf /etc/samba/private \
+	/etc/network/if-up.d/01samba-start /etc/network/if-down.d/01samba-kill"
+FILES_libpopt = "${libdir}/libpopt.so.*"
+FILES_libtalloc = "${libdir}/libtalloc.so.*"
+FILES_libtdb = "${libdir}/libtdb.so.*"
+
+PROVIDES_append_opendreambox = " sambaserver libpopt libtalloc libtdb"
+PROVIDES_append_vuplus = " sambaserver libpopt libtalloc libtdb"
+
+INITSCRIPT_NAME = "samba"
+# No dependencies, goes in at level 20 (NOTE: take care with the
+# level, later levels put the shutdown later too - see the links
+# in rc6.d, the shutdown must precede network shutdown).
+INITSCRIPT_PARAMS = "defaults"
+CONFFILES_${PN} = "${sysconfdir}/samba/smb.conf"
+
+CONFFILES_sambaserver = "${sysconfdir}/samba/smb.conf"
+CONFFILES_${PN}_opendreambox = ""
+CONFFILES_${PN}_vuplus = ""
+
+do_configure_prepend () {
+	./script/mkversion.sh
+	if [ ! -e acinclude.m4 ]; then
+		touch aclocal.m4	
+		cat aclocal.m4 > acinclude.m4
+	fi
+}
+
+do_compile () {
+	oe_runmake proto_exists
+	base_do_compile
+}
+
+do_install_append() {
+	install -d ${D}${libdir}/pkgconfig/
+	cp ${WORKDIR}/tdb.pc ${D}${libdir}/pkgconfig/
+	mv ${D}${libdir}/libsmbclient.so ${D}${libdir}/libsmbclient.so.0 || true
+	ln -sf libsmbclient.so.0 ${D}${libdir}/libsmbclient.so
+	mkdir -p ${D}${base_sbindir}
+	rm -f ${D}${bindir}/*.old
+	rm -f ${D}${sbindir}/*.old
+	[ -f ${D}${sbindir}/mount.cifs ] && mv ${D}${sbindir}/mount.cifs ${D}${base_sbindir}/
+	[ -f ${D}${sbindir}/umount.cifs ] && mv ${D}${sbindir}/umount.cifs ${D}${base_sbindir}/
+
+	# This is needed for < 3.2.4
+	rm -f ${D}${sbindir}/mount.smbfs ${D}${base_sbindir}/mount.smbfs
+	if [ -f ${D}${bindir}/smbmount ]; then
+		ln -sf ${bindir}/smbmount ${D}${base_sbindir}/mount.smb
+		ln -sf ${bindir}/smbmount ${D}${base_sbindir}/mount.smbfs
+	fi
+	
+	install -D -m 755 ${WORKDIR}/init ${D}${sysconfdir}/init.d/samba
+	install -D -m 644 ${WORKDIR}/smb.conf ${D}${sysconfdir}/samba/smb.conf
+	install -D -m 644 ${WORKDIR}/volatiles.03_samba ${D}${sysconfdir}/default/volatiles/volatiles.03_samba
+	install -d ${D}/var/log/samba
+	install -d ${D}/var/spool/samba
+}
+
+do_install_prepend_opendreambox() {
+	install -c -m 644 ${WORKDIR}/smb.conf ../examples/smb.conf.default
+}
+
+do_install_append_opendreambox() {
+	install -d ${D}/etc/samba/private
+	install -d ${D}/etc/network/if-down.d
+	install -m 0755 ${WORKDIR}/01samba-kill ${D}/etc/network/if-down.d
+	install -d ${D}/etc/network/if-up.d
+	install -m 0755 ${WORKDIR}/01samba-start ${D}/etc/network/if-up.d
+}
+
+do_install_prepend_vuplus() {
+	install -c -m 644 ${WORKDIR}/smb.conf ../examples/smb.conf.default
+}
+
+do_install_append_vuplus() {
+	install -d ${D}/etc/samba/private
+	install -d ${D}/etc/network/if-down.d
+	install -m 0755 ${WORKDIR}/01samba-kill ${D}/etc/network/if-down.d
+	install -d ${D}/etc/network/if-up.d
+	install -m 0755 ${WORKDIR}/01samba-start ${D}/etc/network/if-up.d
+}
+
